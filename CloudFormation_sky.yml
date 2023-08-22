@@ -1,0 +1,184 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: This template creates a VPC with two public subnets and includes an EC2 instance in both an autoscaling group with a target tracking policy.
+
+#creating the VPC subnets CIDR. It will have 2 public subnets.
+Parameters:
+  VPCCIDR:
+    Default: 10.0.0.0/16
+    Description: The IP range (CIDR notation) for this VPC
+    Type: String
+
+  VPCPubSub1CIDR:
+    Default: 10.0.1.0/24
+    Description: The IP range (CIDR notation) for the public subnet 1
+    Type: String
+
+  VPCPubSub2CIDR:
+    Default: 10.0.2.0/24
+    Description: The IP range (CIDR notation) for the public subnet 2
+    Type: String
+
+#will check the CPU usage as the target value t autoscale the EC2 instance.
+  CPUPolicyTargetValue:
+    Default: 80
+    Description: This is the target CPU utilization
+    Type: String
+
+  #create a launch template for the AutoScaling group.
+  LaunchTemplateVersionNumber:
+    Default: 1
+    Type: String
+
+  #specifies the IP address range that can be used to SSH into the instances.
+  SSHLocation:
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid CIDR range of the form x.x.x.x/x.
+
+#creating the VPC and its resources.
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCIDR
+      EnableDnsHostnames: True
+      EnableDnsSupport: True
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: MyVPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: MyIGW
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+#Create Public Subnets
+  VPCPubSub1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref VPCPubSub1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: PubSub1
+      VpcId: !Ref VPC
+
+  VPCPubSub2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: !Ref VPCPubSub2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: PubSub2
+      VpcId: !Ref VPC
+
+#Create Route Table
+  VPCPubRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PubRT:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref VPCPubRT
+
+#Associate Subnets
+  VPCPubSub1RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPCPubRT
+      SubnetId: !Ref VPCPubSub1
+
+  VPCPubSub2RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPCPubRT
+      SubnetId: !Ref VPCPubSub2
+
+#Create Security Group
+  WebSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Will enable HTTP (port 80) and SSH (port 22)
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SSHLocation
+
+#Create Launch Template
+  LaunchTemplate:
+    Type: 'AWS::EC2::LaunchTemplate'
+    Properties:
+      LaunchTemplateName: !Sub '${AWS::StackName}-launch-template-for-auto-scaling'
+      LaunchTemplateData:
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            AssociatePublicIpAddress: true
+            Groups:
+              - !Ref WebSG
+            DeleteOnTermination: true
+        Placement:
+          Tenancy: default
+        ImageId: ami-0f9fc25dd2506cf6d
+        InstanceType: t2.micro
+        UserData:
+          Fn::Base64:
+            !Sub |
+              #!/bin/bash
+              yum update -y
+              yum install httpd -y
+              systemctl start httpd
+              systemctl enable httpd
+              amazon-linux-extras install epel -y
+              yum install stress -y
+              
+#Create AutoScaling Group for the EC2 instances within the public subnets
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      MinSize: '2'
+      MaxSize: '4'
+      DesiredCapacity: '2'
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !Ref LaunchTemplateVersionNumber
+      VPCZoneIdentifier:
+        - !Ref VPCPubSub1
+        - !Ref VPCPubSub2
+
+#AutoScaling Group Tracking Policy
+  myCPUPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: !Ref CPUPolicyTargetValue
+        
