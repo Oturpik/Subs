@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Web App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Welcome to the Media Web App</h1>
+    </header>
+    <main>
+        <section class="gallery">
+            <h2>Image Gallery</h2>
+            <div class="media-container">
+                <div class="horizontal-scroll">
+                    <div class="media-item">
+                        <img src="img/Architecture.png" alt="Image 1">
+                        <p>Architecture diagram</p>
+                    </div>
+                    <div class="media-item">
+                        <img src="img/portfolio-5.jpg" alt="Image 2">
+                        <p>A bit of art</p>
+                    </div>
+                    <div class="media-item">
+                        <img src="img/portfolio-7.jpg" alt="Image 2">
+                        <p>There's more to it</p>
+                    </div>
+                    <!-- Add more images here -->
+                </div>
+            </div>
+        </section>
+        <section class="videos">
+            <h2>Video Gallery</h2>
+            <div class="media-container">
+                <div class="horizontal-scroll">
+                    <div class="media-item">
+                        <video controls>
+                            <source src="vid/Introduction to Amazon CloudFront.mp4" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                        <p>How CloudFront makes it possible to view this video.</p>
+                    </div>
+                    <div class="media-item">
+                        <video controls>
+                            <source src="vid/Amazon Route 53.mp4" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                        <p>How your browser found this site.</p>
+                    </div>
+                    <div class="media-item">
+                        <video controls>
+                            <source src="vid/AWS for Every Application _ Amazon Web Services.mp4" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                        <p>AWS has something for everything.</p>
+                    </div>
+                    <!-- Add more videos here -->
+                </div>
+            </div>
+        </section>
+    </main>
+</body>
+</html>
